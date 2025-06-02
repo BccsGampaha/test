@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+import os
 
 app = Flask(__name__)
 
@@ -10,59 +11,62 @@ responce_updated = False
 @app.route('/writecmd', methods=['POST'])
 def write_to_file():
     global cmds_updated
-    data = request.json.get("content")
-    if not data:
-        return jsonify({"error": "No content provided"}), 400
-
     try:
+        data = request.json.get("content", "").strip()
+        if not data:
+            return jsonify({"error": "No content provided"}), 400
+
         with open(write_file_path, "w", encoding="utf-8") as f:
             f.write(data)
         cmds_updated = True
-        return jsonify({"message": "File cmds_updated successfully!"}), 200
+        return jsonify({"message": "Command written successfully!"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-    
     
 @app.route('/writeresponce', methods=['POST'])
 def write_the_responce():
     global responce_updated
-    data = request.json.get("content")
-    if not data:
-        return jsonify({"error": "No content provided"}), 400
-
     try:
-        with open("responce.txt", "w", encoding="utf-8") as f:
+        data = request.json.get("content", "")
+        with open(read_file_path, "w", encoding="utf-8") as f:
             f.write(data)
         responce_updated = True
-        return jsonify({"message": "File responce_updated successfully!"}), 200
+        return jsonify({"message": "Response written successfully!"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 @app.route('/getresponce')
 def get_responce():
     global responce_updated
-    while not responce_updated:
-        if responce_updated:
-            break
-    with open("responce.txt", "r") as file:
-        command = file.readlines()
-        # print(command)
-    responce_updated = False
-    return command
-
+    try:
+        while not responce_updated:
+            pass
+        with open(read_file_path, "r") as file:
+            content = file.read()
+        responce_updated = False
+        return content
+    except Exception as e:
+        return str(e), 500
 
 @app.route('/getcmd')
 def get_file():
     global cmds_updated
-    if cmds_updated:
-        with open("cmds.txt", "r") as file:
-            command = file.readlines()
-            # print(command)
-        cmds_updated = False
-        return command[-1]
-    else:
-        return "NOT UPDATED BY THE USER"
-
+    try:
+        if cmds_updated:
+            with open(write_file_path, "r") as file:
+                content = file.read().strip()
+            cmds_updated = False
+            return content
+        return "WAITING_FOR_COMMAND"
+    except Exception as e:
+        return str(e), 500
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0')
+    # Create files if they don't exist
+    if not os.path.exists(write_file_path):
+        with open(write_file_path, 'w') as f:
+            f.write('')
+    if not os.path.exists(read_file_path):
+        with open(read_file_path, 'w') as f:
+            f.write('')
+    app.run(host='0.0.0.0', port=5000, debug=True)

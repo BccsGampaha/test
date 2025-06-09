@@ -1,20 +1,82 @@
-from flask import Flask, request, jsonify
 import os
+from flask import Flask, send_from_directory, render_template, abort, request, redirect, url_for, flash,jsonify
 from werkzeug.utils import secure_filename
+from datetime import datetime
 
 app = Flask(__name__)
+app.secret_key = 'your-secret-key-here'  # Change this for production!
+
+# Configuration
+UPLOAD_FOLDER = '/uploads'
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx', 'xlsx'}
+MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
+
+# Ensure upload folder exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 write_file_path = "cmds.txt"
 read_file_path = "responce.txt"
 cmds_updated = False
 responce_updated = False
 
-UPLOAD_FOLDER = 'uploads'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+@app.route('/')
+def index():
+    return redirect(url_for('list_files'))
 
-# Configuration for large files
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 * 1024  # 16GB max
-app.config['UPLOAD_BUFFER_SIZE'] = 16 * 1024 * 1024  # 16MB buffer
+@app.route('/uploads', methods=['GET', 'POST'])
+def list_files():
+    if request.method == 'POST':
+        # Handle file upload
+        if 'file' not in request.files:
+            flash('No file selected')
+            return redirect(request.url)
+            
+        file = request.files['file']
+        if file.filename == '':
+            flash('No file selected')
+            return redirect(request.url)
+            
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            flash('File uploaded successfully')
+            return redirect(url_for('list_files'))
+        else:
+            flash('Invalid file type')
+            
+    # List all files
+    files = []
+    for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        if os.path.isfile(filepath):
+            stat = os.stat(filepath)
+            files.append({
+                'name': filename,
+                'size': stat.st_size,
+                'modified': datetime.fromtimestamp(stat.st_mtime),
+                'download_url': url_for('download_file', filename=filename)
+            })
+    
+    return render_template('file.html', files=files)
+
+@app.route('/uploads/<filename>')
+def download_file(filename):
+    try:
+        safe_filename = secure_filename(filename)
+        return send_from_directory(
+            app.config['UPLOAD_FOLDER'],
+            safe_filename,
+            as_attachment=True
+        )
+    except FileNotFoundError:
+        abort(404)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -27,6 +89,7 @@ def upload_file():
     
     filename = secure_filename(file.filename)
     file.save(os.path.join(UPLOAD_FOLDER, filename))
+    print(os.path.join(UPLOAD_FOLDER, filename))
     print(f"file saved to {os.path.join(UPLOAD_FOLDER,filename)}")
     
     # Immediate response
@@ -36,35 +99,6 @@ def upload_file():
         "size": os.path.getsize(os.path.join(UPLOAD_FOLDER, filename))
     })
 
-
-# @app.route('/upload', methods=['POST'])
-# def upload_file():
-#     if 'file' not in request.files:
-#         return jsonify({"error": "No file part"}), 400
-    
-#     file = request.files['file']
-#     if file.filename == '':
-#         return jsonify({"error": "No selected file"}), 400
-    
-#     filename = secure_filename(file.filename)
-#     file.save(os.path.join(UPLOAD_FOLDER, filename))
-#     return jsonify({
-#         "success": True,
-#         "filename": filename,
-#         "size": os.path.getsize(os.path.join(UPLOAD_FOLDER, filename))
-#     })
-# @app.route('/upload', methods=['POST'])
-# def upload_file():
-#     if 'file' not in request.files:
-#         return jsonify({"error": "No file provided"}), 400
-    
-#     file = request.files['file']
-#     if file.filename == '':
-#         return jsonify({"error": "No selected file"}), 400
-    
-#     if file:
-#         file.save(os.path.join(UPLOAD_FOLDER, file.filename))
-#         return jsonify({"message": "File uploaded successfully", "filename": file.filename}), 200
 
 
 @app.route('/writecmd', methods=['POST'])
@@ -133,3 +167,6 @@ if __name__ == "__main__":
         port=5000,
         threaded=True
     )
+
+if __name__ == '__main__':
+    app.run(debug=True)

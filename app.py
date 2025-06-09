@@ -7,7 +7,7 @@ app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Change this for production!
 
 # Configuration
-UPLOAD_FOLDER = '/uploads'
+UPLOAD_FOLDER = 'instance/uploads'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'docx', 'xlsx'}
 MAX_FILE_SIZE = 16 * 1024 * 1024  # 16MB
 
